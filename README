@@ -1,0 +1,72 @@
+pftabled 1.01 (2003-Oct-29)
+===========================
+
+The pftabled daemon is a small helper to make your pf tables reachable
+from other hosts. You can add/delete/flush IP addresses to/from a fixed
+table with a single UDP datagram. A simple client program is included to
+do this on the command line.
+
+SECURITY: The daemon runs chrooted and drops privileges to a user named
+pftabled (or nobody if it doesn't exist). But remember to secure your
+receiving port by adequate pf rules, e.g.
+
+  block in proto udp from any to any port 1234
+  pass in on $if_int proto udp from $internal to any port 1234
+
+
+Usage examples
+==============
+
+1. Spam blocking
+
+On your firewall you are redirecting certain IPs to spamd:
+
+  table <spammer> persist
+  rdr on fxp0 proto tcp from <spammer> to any port 25 -> 127.0.0.1 port 8025
+
+Now you're able to fill this table from your mailservers, e.g. with qmail
+
+  $ cat .qmail-spamtrap
+  |pftabled-client 10.1.1.1 1234 add $TCPREMOTEIP
+
+
+2. Portsentry response
+
+You're running portsentry (or some other honeypot tool) on your hosts.
+Add these lines to your portsentry.conf
+
+  KILL_RUN_CMD_FIRST = "0"
+  KILL_RUN_CMD="pftabled-client 10.1.1.1 1234 add $TARGET$"
+
+to add attackers to a blocklist on your firewall
+
+  table <block> persist
+  block in on fxp0 from <block> to any
+
+
+3. Load balancer
+
+You have a PF load balancer in front of your web server farm:
+
+  table <farm> persist
+  rdr on fxp0 proto tcp from any to any port 80 -> <farm> round-robin
+
+On every webserver 10.1.1.x you assure it will be listed in table <farm>
+as long as the machine is running:
+
+  while true; do pftabled-client 10.1.1.1 1234 add 10.1.1.x; sleep 1; done
+
+Periodically cleaning entries from <farm> on the load balancer:
+
+  for x in 2 3 4; do pfctl -t farm -T del 10.1.1.$x; sleep 10; done
+
+
+Homepage
+========
+
+You can always find the latest version of pftabled at:
+
+  http://www.wolfermann.org/pftabled.html
+
+
+$Id: README,v 1.6 2003/10/26 23:27:24 armin Exp $

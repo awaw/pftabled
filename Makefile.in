@@ -1,0 +1,58 @@
+# $Id: Makefile.in,v 1.2 2003/10/26 23:52:49 armin Exp $
+
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+bindir=@bindir@
+sbindir=@sbindir@
+mandir=@mandir@
+
+CC=@CC@
+CFLAGS=@CFLAGS@
+CPPFLAGS=@CPPFLAGS@
+LDFLAGS=@LDFLAGS@
+INSTALL=@INSTALL@
+LIBS=@LIBS@
+
+all: @ALLTARGET@
+
+server: pftabled pftabled.cat1
+
+client: pftabled-client
+
+pftabled: pftabled.o
+	${CC} ${LDFLAGS} -o $@ $? ${LIBS}
+
+pftabled.cat1: pftabled.1
+	nroff -Tascii -man pftabled.1 > pftabled.cat1
+
+pftabled-client: pftabled-client.o
+	${CC} ${LDFLAGS} -o $@ $? ${LIBS}
+
+install: @INSTALLTARGET@
+
+server-install: pftabled pftabled.cat1
+	${INSTALL} -s -m 555 pftabled ${sbindir}
+	${INSTALL} -m 444 pftabled.cat1 ${mandir}/cat1/pftabled.0
+
+client-install: pftabled-client
+	${INSTALL} -s -m 555 pftabled-client ${bindir}
+
+clean:
+	rm -f pftabled pftabled-client *.o *.cat1
+
+distclean: clean
+	rm -f config.log config.status config.cache Makefile
+
+VERSION="pftabled @VERSION@ (`date +%Y-%b-%d`)"
+DISTDIR=pftabled-@VERSION@
+dist: server client clean
+	rm -rf $(DISTDIR)
+	mkdir $(DISTDIR)
+	-cp * $(DISTDIR)
+	cd $(DISTDIR) && make distclean
+	cd $(DISTDIR) && rm -f prepare configure.in
+	(echo $(VERSION); cat README) >$(DISTDIR)/README
+	tar cf pftabled-@VERSION@.tar ./pftabled-@VERSION@/
+	gzip -f9 pftabled-@VERSION@.tar
+	rm -rf $(DISTDIR)
+
