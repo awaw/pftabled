@@ -1,4 +1,4 @@
-.\" $Id: pftabled.1,v 1.6 2004/04/24 17:50:08 armin Exp $
+.\" $Id: pftabled.1,v 1.7 2004/09/12 15:53:22 armin Exp $
 .\"
 .\" Manpage written by Armin Wolfermann. Public Domain.
 .\"
@@ -12,6 +12,8 @@
 .Nm pftabled
 .Op Fl a Ar address
 .Op Fl d
+.Op Fl f Ar table
+.Op Fl k Ar keyfile
 .Op Fl p Ar port
 .Op Fl t Ar timeout
 .Op Fl v
@@ -22,14 +24,21 @@ The
 daemon is a small helper to make your
 .Xr pf 4
 tables reachable from other hosts.
-It operates only on the table supplied as an argument.
 .Pp
 The options are as follows:
 .Bl -tag -width Dfxaddress
 .It Fl a Ar address
 Bind to this address (default: 0.0.0.0).
 .It Fl d
-Run as daemon in the background.
+Run as daemon in the background and log to system logfiles.
+Defaults to run in the foreground and log to standard error.
+.It Fl f Ar table
+Force client requests to use this table.
+Ignores client supplied table name.
+.It Fl k Ar keyfile
+Read authentication key from
+.Ar keyfile .
+Needs to be at least 20 bytes large.
 .It Fl p Ar port
 Bind to this port (default: 56789).
 .It Fl t Ar timeout
@@ -41,29 +50,49 @@ needs more memory (approx. 16 bytes per active address).
 .It Fl v
 Log all received commands.
 .El
+.Sh AUTHENTICATION
+Client requests are authenticated by a HMAC-SHA1 keyed hash.
+A secret keyfile with at least 20 bytes of key material is needed.
+It may be generated from random data by
 .Pp
-Beware that no authentication is performed.
-Make sure you pass only authorized packets to
-.Nm .
+.Dl # dd if=/dev/arandom of=/etc/pftabled.key bs=20 count=1
+.Dl # chmod 0400 /etc/pftabled.key
 .Pp
+and distributed securely (see
+.Xr scp 1 )
+to the participating hosts.
+Securing the receiving port by adequate
+.Xr pf 4
+rules is still recommended.
+.Sh WIRE FORMAT
 The
 .Nm
-daemon accepts UDP datagrams of the format:
+daemon accepts UDP datagrams of the following format:
 .Bd -literal -offset indent
-+--------+--------+--------+--------+
-|              Command              |
-+--------+--------+--------+--------+
-|            IPv4 address           |
-+--------+--------+--------+--------+
++---------+---------+---------+---------+
+| Version | Command |      Reserved     |
++---------+---------+---------+---------+
+|              IPv4 address             |
++---------+---------+---------+---------+
+|                                       |
+:         Table name (32 bytes)         :
+|                                       |
++---------+---------+---------+---------+
+|               Timestamp               |
++---------+---------+---------+---------+
+|                                       |
+:         Signature (20 bytes)          :
+|                                       |
++---------+---------+---------+---------+
 .Ed
 .Pp
 With the following commands:
 .Bl -tag -width Dfx0x00000001
-.It 0x00000001
+.It 0x01
 Add address to table.
-.It 0x00000002
+.It 0x02
 Delete address from table.
-.It 0x00000003
+.It 0x03
 Flush table.
 .El
 .Sh SEE ALSO
@@ -72,6 +101,6 @@ Flush table.
 .Sh VERSION
 This manual page describes
 .Nm
-version 1.02.
+version 1.04.
 .Sh AUTHORS
 Armin Wolfermann <armin@wolfermann.org>

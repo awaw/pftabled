@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.5 2004/04/24 23:20:55 armin Exp $
+# $Id: Makefile.in,v 1.10 2004/09/12 16:40:41 armin Exp $
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -7,11 +7,14 @@ sbindir=@sbindir@
 mandir=@mandir@
 
 CC=@CC@
-CFLAGS=@CFLAGS@
+CFLAGS=@CFLAGS@ -Wall
 CPPFLAGS=@CPPFLAGS@
 LDFLAGS=@LDFLAGS@
 INSTALL=@INSTALL@
 LIBS=@LIBS@
+
+SERVEROBJS=pftabled.o hmac.o sha1.o
+CLIENTOBJS=pftabled-client.o hmac.o sha1.o
 
 all: @ALLTARGET@
 
@@ -19,14 +22,14 @@ server: pftabled pftabled.cat1
 
 client: pftabled-client
 
-pftabled: pftabled.o
-	${CC} ${LDFLAGS} -o $@ $? ${LIBS}
+pftabled: ${SERVEROBJS}
+	${CC} ${LDFLAGS} -o $@ ${SERVEROBJS} ${LIBS}
 
 pftabled.cat1: pftabled.1
 	nroff -Tascii -man pftabled.1 > pftabled.cat1
 
-pftabled-client: pftabled-client.o
-	${CC} ${LDFLAGS} -o $@ $? ${LIBS}
+pftabled-client: ${CLIENTOBJS}
+	${CC} ${LDFLAGS} -o $@ ${CLIENTOBJS} ${LIBS}
 
 install: @INSTALLTARGET@
 
@@ -38,15 +41,18 @@ client-install: pftabled-client
 	${INSTALL} -s -m 555 pftabled-client ${bindir}
 
 clean:
-	rm -f pftabled pftabled-client *.o *.cat1
+	-rm -f pftabled pftabled-client *.o *.cat1
 
 distclean: clean
-	rm -f config.log config.status config.cache Makefile
+	-rm -f Makefile config.log config.status config.cache config.h
 
-VERSION="pftabled @VERSION@ (`date +%Y-%m-%d`)"
-DISTDIR=pftabled-@VERSION@
+cvsclean: clean
+	-rm -f Makefile config.log config.status config.cache config.h
+	-rm -f configure README config.h.in
+	-rm -rf autom4te.cache
+
+DISTDIR=@PACKAGE_TARNAME@-@PACKAGE_VERSION@
 dist:
-	-(echo 1c; echo $(VERSION); echo .; echo wq) | ed README
 	-rm -f $(DISTDIR).tar $(DISTDIR).tar.gz
 	-tar -I MANIFEST -s '/^/$(DISTDIR)\//' -cvf $(DISTDIR).tar
 	-gzip -9 $(DISTDIR).tar

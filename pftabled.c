@@ -1,4 +1,4 @@
-/* $Id: pftabled.c,v 1.8 2004/05/01 16:24:34 armin Exp $ */
+/* $Id: pftabled.c,v 1.15 2004/09/12 15:53:22 armin Exp $ */
 /*
  * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
  *
@@ -25,7 +25,8 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/types.h>
+#include "pftabled.h"
+
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/queue.h>
@@ -33,7 +34,6 @@
 #include <net/if.h>
 #include <net/pfvar.h>
 #include <arpa/inet.h>
-#include <netinet/in.h>
 
 #include <err.h>
 #include <errno.h>
@@ -47,8 +47,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "pftabled.h"
-
 #define PFDEV "/dev/pf"
 static int pfdev = -1;
 
@@ -61,6 +59,7 @@ struct pftimeout {
 	TAILQ_ENTRY(pftimeout) queue;
 	struct in_addr ip;
 	time_t timeout;
+	char   table[PF_TABLE_NAME_SIZE];
 };
 
 static void
@@ -112,8 +111,9 @@ add(char *tname, struct in_addr *ip)
 	if (timeout) {
 		if ((t = malloc(sizeof(struct pftimeout))) == NULL)
 			err(1, "malloc");
-		t->timeout = time(NULL) + timeout;
 		t->ip = *ip;
+		t->timeout = time(NULL) + timeout;
+		strncpy(t->table, tname, sizeof(t->table));
 		TAILQ_INSERT_HEAD(&timeouts, t, queue);
 	}
 }
@@ -166,10 +166,12 @@ usage(int code)
 {
 	fprintf(stderr, "%d\n", sizeof(struct pftimeout));
 	fprintf(stderr,
-	    "Usage: pftabled [-dv] [-a address] [-p port] [-t timeout] table\n"
+	    "Usage: pftabled [options...]\n"
 	    "-d          Run as daemon in the background\n"
 	    "-v          Log all received packets\n"
 	    "-a address  Bind to this address (default: 0.0.0.0)\n"
+	    "-f table    Force requests to use this table\n"
+	    "-k keyfile  Read authentication key from file\n"
 	    "-p port     Bind to this port (default: 56789)\n"
 	    "-t timeout  Remove IPs from table after timeout seconds\n");
 	if (code)
@@ -187,22 +189,36 @@ main(int argc, char *argv[])
 	int ch, n, s;
 	struct timeval tv;
 	struct pftimeout *t;
+	char *table;
+	int keyfile;
 
 	/* Options and their defaults */
 	char *address = NULL;
 	int daemonize = 0;
+	char *forced = NULL;
+	char key[SHA1_DIGEST_LENGTH];
 	int port = 56789;
-	char *table = NULL;
 	int verbose = 0;
 
 	/* Process commandline arguments */
-	while ((ch = getopt(argc, argv, "a:dp:t:vh")) != -1) {
+	while ((ch = getopt(argc, argv, "a:df:k:p:t:vh")) != -1) {
 		switch (ch) {
 		case 'a':
 			address = optarg;
 			break;
 		case 'd':
 			daemonize = 1;
+			break;
+		case 'f':
+			forced = optarg;
+			if (strlen(forced) >= PF_TABLE_NAME_SIZE)
+				err(1, "table name too long");
+			break;
+		case 'k':
+			keyfile = open(optarg, O_RDONLY, 0);
+			if (read(keyfile, key, sizeof(key)) != sizeof(key))
+				err(1, "unable to read authentication key");
+			close(keyfile);
 			break;
 		case 'p':
 			port = strtol(optarg, NULL, 10);
@@ -219,13 +235,6 @@ main(int argc, char *argv[])
 			usage(1);
 		}
 	}
-
-	/* Check table argument */
-	if ((table = argv[optind]) == NULL)
-		usage(1);
-
-	if (strlen(table) >= PF_TABLE_NAME_SIZE)
-		err(1, "table name too long");
 
 	/* Prepare and bind our socket */
 	bzero((char *)&laddr, sizeof(struct sockaddr_in));
@@ -286,7 +295,6 @@ main(int argc, char *argv[])
 
 	/* Main loop: receive packets */
 	for(;;) {
-
 		n = recvfrom(s, &msg, sizeof(msg), 0,
 		    (struct sockaddr *)&raddr, &socklen);
 
@@ -299,10 +307,10 @@ main(int argc, char *argv[])
 				if (now < t->timeout)
 					break;
 
-				del(table, &t->ip);
+				del(t->table, &t->ip);
 				if (verbose)
-					logit(LOG_ERR, "<%s> del %s\n", table,
-					    inet_ntoa(t->ip));
+					logit(LOG_ERR, "<%s> del %s\n",
+					    t->table, inet_ntoa(t->ip));
 
 				TAILQ_REMOVE(&timeouts, t, queue);
 				free(t);
@@ -313,21 +321,46 @@ main(int argc, char *argv[])
 		if (n != sizeof(msg))
 			continue;
 
+		/* Check packet version */
+		if (msg.version != PFTABLED_MSG_VERSION) {
+			if (verbose)
+				logit(LOG_ERR, "wrong protocol version\n");
+			continue;
+		}
+
+		/* Check timestamp */
+		if ((uint32_t)time(NULL) - ntohl(msg.timestamp) > CLOCKDIFF) {
+			if (verbose)
+				logit(LOG_ERR, "timestamp too old\n");
+			continue;
+		}
+
+		/* Check authentication */
+		if (hmac_verify(key, &msg, sizeof(msg) - sizeof(msg.digest),
+		    msg.digest)) {
+			if (verbose)
+				logit(LOG_ERR, "wrong authentication\n");
+			continue;
+		}
+
+		/* Which table to use */
+		table = forced ? forced : (char *)&msg.table;
+
 		/* Dispatch commands */
-		switch (ntohl(msg.cmd)) {
-		case CMD_ADD:
+		switch (msg.cmd) {
+		case PFTABLED_CMD_ADD:
 			add(table, &msg.addr);
 			if (verbose)
 				logit(LOG_ERR, "<%s> add %s\n", table,
 				    inet_ntoa(msg.addr));
 			break;
-		case CMD_DEL:
+		case PFTABLED_CMD_DEL:
 			del(table, &msg.addr);
 			if (verbose)
 				logit(LOG_ERR, "<%s> del %s\n", table,
 				    inet_ntoa(msg.addr));
 			break;
-		case CMD_FLUSH:
+		case PFTABLED_CMD_FLUSH:
 			flush(table);
 			if (verbose)
 				logit(LOG_ERR, "<%s> flush\n", table);

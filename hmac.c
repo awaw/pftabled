@@ -1,6 +1,6 @@
-/* $Id: pftabled.h,v 1.10 2004/09/12 15:53:22 armin Exp $ */
+/* $Id: hmac.c,v 1.2 2004/09/12 12:17:08 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2004 Armin Wolfermann.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,53 +25,47 @@
  * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "config.h"
-
-#ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
-#else
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#else
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-#endif
-#endif
-#include <netinet/in.h>
+#include <string.h>
+#include "pftabled.h"
 #include "sha1.h"
 
-#ifdef DEBUG
-#define DPRINTF(x) do { printf x ; } while (0)
-#else
-#define DPRINTF(x)
-#endif
+void
+hmac(uint8_t *key, void *data, int datalen, uint8_t *md)
+{
+	SHA1_CTX ctx;
+	unsigned char pad[SHA1_BLOCK_LENGTH];
+	int i;
 
-#ifndef PF_TABLE_NAME_SIZE
-#define PF_TABLE_NAME_SIZE 32	/* Needs to be defined for non-OpenBSD */
-#endif
+	/* compute ipad from key */
+	memset((void *)&pad, 0, sizeof(pad));
+	(void)memcpy(pad, key, SHA1_DIGEST_LENGTH);
+	for (i = 0; i < sizeof(pad); i++)
+		pad[i] ^= 0x36;
 
-#define CLOCKDIFF 60	/* Maximum clock difference plus network delay in
-			   seconds between server and client. Server drops
-			   packet if exceeded. */
+	/* compute inner hash */
+	SHA1Init(&ctx);
+	SHA1Update(&ctx, pad, sizeof(pad));
+	SHA1Update(&ctx, data, datalen);
+	SHA1Final(md, &ctx);
 
-#define PFTABLED_MSG_VERSION 0x01
+	/* convert ipad to opad */
+	for (i = 0; i < sizeof(pad); i++)
+		pad[i] ^= 0x36 ^ 0x5c;
 
-#define PFTABLED_CMD_ADD   0x01
-#define PFTABLED_CMD_DEL   0x02
-#define PFTABLED_CMD_FLUSH 0x03
+	/* compute outer hash */
+	SHA1Init(&ctx);
+	SHA1Update(&ctx, pad, sizeof(pad));
+	SHA1Update(&ctx, md, SHA1_DIGEST_LENGTH);
+	SHA1Final(md, &ctx);
+}
 
-struct pftabled_msg {
-	uint8_t		version;
-	uint8_t		cmd;
-	uint8_t		reserved[2];
-	struct in_addr	addr;
-	char		table[PF_TABLE_NAME_SIZE];
-	uint32_t	timestamp;
-	uint8_t		digest[SHA1_DIGEST_LENGTH];
-};
+int
+hmac_verify(uint8_t *key, void *data, int datalen, uint8_t *md)
+{
+	uint8_t md2[SHA1_DIGEST_LENGTH];
 
-/* hmac.c */
-void hmac(uint8_t *, void *, int, uint8_t *);
-int hmac_verify(uint8_t *, void *, int, uint8_t *);
+	hmac(key, data, datalen, md2);
 
+	return (memcmp(md, md2, SHA1_DIGEST_LENGTH));
+}

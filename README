@@ -1,33 +1,67 @@
-pftabled 1.03 (2004-05-01)
-==========================
+-----------------------------------------------------------------------------
+pftabled 1.04
+-----------------------------------------------------------------------------
 
 The pftabled daemon is a small helper to make your pf tables reachable
-from other hosts. You can add/delete/flush IP addresses to/from a fixed
+from other hosts. You can add/delete/flush IP addresses to/from a remote
 table with a single UDP datagram. A simple client program is included to
 do this on the command line.
 
 SECURITY: The daemon runs chrooted and drops privileges to a user named
-pftabled (or nobody if it doesn't exist). But remember to secure your
-receiving port by adequate pf rules, e.g.
+pftabled (or nobody if it doesn't exist). Although this version introduces
+SHA1 authentication I still recommend to secure the receiving port by
+adequate pf rules, e.g.
 
-  block in proto udp from any to ($if_int) port 1234
-  pass in on $if_int proto udp from $authorized to ($if_int) port 1234
+  block in proto udp from any to ($if_int) port 56789
+  pass in on $if_int proto udp from $authorized to ($if_int) port 56789
 
+UPGRADING: If you're upgrading from an older version of pftabled you have
+to upgrade client and server. I changed the message format to support the
+new features and to make future upgrades easier.
 
+-----------------------------------------------------------------------------
+Installation
+-----------------------------------------------------------------------------
+
+Just run:
+
+  $ ./configure
+  $ make
+
+Installing binaries and manpage to /usr/local:
+
+  # make install
+or
+  # make client-install
+  # make server-install
+
+The pftabled daemon is built on pf(4) enabled platforms only (by checking
+for the net/pfvar.h include file). The client is always built.
+
+Now generate an authentication key:
+
+  # dd if=/dev/random of=/etc/pftabled.key bs=20 count=1
+
+Copy this key to your hosts via a secure channel (ssh, floppy disk) and
+make sure it can only be read by the programs:
+
+  # chmod 0400 /etc/pftabled.key
+
+-----------------------------------------------------------------------------
 Usage examples
-==============
+-----------------------------------------------------------------------------
 
 1. Spam blocking
 
 On your firewall you are redirecting certain IPs to spamd:
 
   table <spammer> persist
-  rdr on fxp0 proto tcp from <spammer> to any port 25 -> 127.0.0.1 port 8025
+  rdr on $ext proto tcp from <spammer> to any port 25 -> 127.0.0.1 port 8025
 
 Now you're able to fill this table from your mailservers, e.g. with qmail
 
   $ cat .qmail-spamtrap
-  |pftabled-client 10.1.1.1 1234 add $TCPREMOTEIP
+  |pftabled-client 10.1.1.1 1234 add $TCPREMOTEIP spammer /etc/pftabled.key
 
 
 2. Portsentry response
@@ -36,34 +70,72 @@ You're running portsentry (or some other honeypot tool) on your hosts.
 Add these lines to your portsentry.conf
 
   KILL_RUN_CMD_FIRST = "0"
-  KILL_RUN_CMD="pftabled-client 10.1.1.1 1234 add $TARGET$"
+  KILL_RUN_CMD="pftabled-client 10.1.1.1 1234 add $TARGET$ blocked /etc/key"
 
 to add attackers to a blocklist on your firewall
 
-  table <block> persist
-  block in on fxp0 from <block> to any
+  table <blocked> persist
+  block in on $ext from <blocked> to any
 
+-----------------------------------------------------------------------------
+Internals
+-----------------------------------------------------------------------------
 
+Datagram format (64 bytes):
+
+	+---------+---------+---------+---------+
+	| Version | Command |      Reserved     |
+	+---------+---------+---------+---------+
+	|              IPv4 address             |
+	+---------+---------+---------+---------+
+	|                                       |
+	:         Table name (32 bytes)         :
+	|                                       |
+	+---------+---------+---------+---------+
+	|               Timestamp               |
+	+---------+---------+---------+---------+
+	|                                       |
+	:    Signature (20 bytes, HMAC-SHA1)    :
+	|                                       |
+	+---------+---------+---------+---------+
+
+Version:
+	0x01	pftabled 1.04
+
+Command:
+	0x01	Add address to table.
+	0x02	Delete address from table.
+	0x03	Flush table.
+
+The server compares incoming timestamps with it's local clock. If the
+difference (= clock difference + network delay) is greater than 60 seconds,
+the packet gets dropped (see pftabled.h to change this value).
+
+-----------------------------------------------------------------------------
 History
-=======
+-----------------------------------------------------------------------------
+
+2004-09-12 Version 1.04
+           SHA1 authentication and client selectable tables.
+           Idea from Russell Fulton <r.fulton@auckland.ac.nz>
 
 2004-05-01 Version 1.03
            Bugfix: Missing initializer for timeout queue.
 
 2004-04-24 Version 1.02
            New timeout option to remove table entries after a fixed time.
-           Idea from Samuel Ljungkvist <salj@triplefusion.net>, code by me.
+           Idea from Samuel Ljungkvist <salj@triplefusion.net>
 
 2003-10-29 Version 1.01
            Initial release.
 
-
+-----------------------------------------------------------------------------
 Homepage
-========
+-----------------------------------------------------------------------------
 
 You can always find the latest version of pftabled at:
 
   http://www.wolfermann.org/pftabled.html
 
-
-$Id: README,v 1.12 2004/05/01 16:25:00 armin Exp $
+-----------------------------------------------------------------------------
+$Id: README.in,v 1.4 2004/09/12 15:53:22 armin Exp $
