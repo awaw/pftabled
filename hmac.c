@@ -1,4 +1,4 @@
-/* $Id: hmac.c,v 1.2 2004/09/12 12:17:08 armin Exp $ */
+/* $Id: hmac.c,v 1.3 2004/09/17 19:58:29 armin Exp $ */
 /*
  * Copyright (c) 2004 Armin Wolfermann.  All rights reserved.
  *
@@ -35,7 +35,7 @@ hmac(uint8_t *key, void *data, int datalen, uint8_t *md)
 {
 	SHA1_CTX ctx;
 	unsigned char pad[SHA1_BLOCK_LENGTH];
-	int i;
+	unsigned int i;
 
 	/* compute ipad from key */
 	memset((void *)&pad, 0, sizeof(pad));

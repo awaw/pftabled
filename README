@@ -1,5 +1,5 @@
 -----------------------------------------------------------------------------
-pftabled 1.04
+pftabled 1.05
 -----------------------------------------------------------------------------
 
 The pftabled daemon is a small helper to make your pf tables reachable
@@ -8,16 +8,15 @@ table with a single UDP datagram. A simple client program is included to
 do this on the command line.
 
 SECURITY: The daemon runs chrooted and drops privileges to a user named
-pftabled (or nobody if it doesn't exist). Although this version introduces
-SHA1 authentication I still recommend to secure the receiving port by
-adequate pf rules, e.g.
+pftabled (or nobody if it doesn't exist). Even with SHA1 authentication
+I still recommend to secure the receiving port by adequate pf rules, e.g.
 
   block in proto udp from any to ($if_int) port 56789
   pass in on $if_int proto udp from $authorized to ($if_int) port 56789
 
-UPGRADING: If you're upgrading from an older version of pftabled you have
-to upgrade client and server. I changed the message format to support the
-new features and to make future upgrades easier.
+UPGRADING: If you're upgrading from a version older than 1.04 you have to
+upgrade client and server. I changed the message format to support the new
+features and to make future upgrades easier.
 
 -----------------------------------------------------------------------------
 Installation
@@ -41,11 +40,10 @@ for the net/pfvar.h include file). The client is always built.
 Now generate an authentication key:
 
   # dd if=/dev/random of=/etc/pftabled.key bs=20 count=1
+  # chmod 0400 /etc/pftabled.key
 
 Copy this key to your hosts via a secure channel (ssh, floppy disk) and
-make sure it can only be read by the programs:
-
-  # chmod 0400 /etc/pftabled.key
+make sure it can only be read by the programs.
 
 -----------------------------------------------------------------------------
 Usage examples
@@ -100,31 +98,37 @@ Datagram format (64 bytes):
 	+---------+---------+---------+---------+
 
 Version:
-	0x01	pftabled 1.04
+	0x01	pftabled 1.04 or newer
 
 Command:
 	0x01	Add address to table.
 	0x02	Delete address from table.
 	0x03	Flush table.
 
-The server compares incoming timestamps with it's local clock. If the
-difference (= clock difference + network delay) is greater than 60 seconds,
-the packet gets dropped (see pftabled.h to change this value).
+Timestamp:
+	The server compares incoming timestamps with it's local clock. If
+	the difference (= clock difference + network delay) is greater than
+	60 seconds, the packet gets dropped (see pftabled.h if you really
+	need to change this value).
 
 -----------------------------------------------------------------------------
 History
 -----------------------------------------------------------------------------
 
+2005-01-27 Version 1.05
+	   Make authentication completely optional. Portability fixes for
+	   servers running on FreeBSD (prompted by Nick Buraglio).
+
 2004-09-12 Version 1.04
-           SHA1 authentication and client selectable tables.
-           Idea from Russell Fulton <r.fulton@auckland.ac.nz>
+           SHA1 authentication and client selectable tables (idea from
+	   Russell Fulton) which necessitates a new wire format.
 
 2004-05-01 Version 1.03
            Bugfix: Missing initializer for timeout queue.
 
 2004-04-24 Version 1.02
-           New timeout option to remove table entries after a fixed time.
-           Idea from Samuel Ljungkvist <salj@triplefusion.net>
+	   New timeout option to automatically remove table entries after a
+	   fixed time (idea from Samuel Ljungkvist).
 
 2003-10-29 Version 1.01
            Initial release.
@@ -138,4 +142,4 @@ You can always find the latest version of pftabled at:
   http://www.wolfermann.org/pftabled.html
 
 -----------------------------------------------------------------------------
-$Id: README.in,v 1.4 2004/09/12 15:53:22 armin Exp $
+$Id: README.in,v 1.7 2005/01/27 09:27:27 armin Exp $

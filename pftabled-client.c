@@ -1,6 +1,6 @@
-/* $Id: pftabled-client.c,v 1.11 2004/09/12 15:53:22 armin Exp $ */
+/* $Id: pftabled-client.c,v 1.13 2005/01/27 09:29:16 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2003, 2004, 2005 Armin Wolfermann.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,7 +40,7 @@
 #include <time.h>
 #include <unistd.h>
 
-void
+static void
 fatal(char *text, char *arg)
 {
 	fprintf(stderr, "pftabled-client: ");
@@ -59,9 +59,10 @@ main(int argc, char *argv[])
 	int keyfile;
 	int s;
 
-	if (argc != 7) {
+	if (argc < 6) {
 		fprintf(stderr,
-		    "Usage: pftabled-client host port cmd ip table keyfile\n\n"
+		    "Usage: pftabled-client host port cmd ip table [keyfile]\n"
+		    "\n"
 		    "host    Host where pftabled is running\n"
 		    "port    Port number at host\n"
 		    "cmd     One of: add, del or flush.\n"
@@ -111,12 +112,14 @@ main(int argc, char *argv[])
 
 	strncpy(msg.table, argv[5], strlen(argv[5]));
 
-	keyfile = open(argv[6], O_RDONLY, 0);
-	if (read(keyfile, key, sizeof(key)) != sizeof(key))
-		fatal("Unable to read key from file '%s'\n", argv[6]);
-	close(keyfile);
+	if (argc == 7) {
+		keyfile = open(argv[6], O_RDONLY, 0);
+		if (read(keyfile, key, sizeof(key)) != sizeof(key))
+			fatal("Unable to read key from file '%s'\n", argv[6]);
+		close(keyfile);
 
-	hmac(key, &msg, sizeof(msg) - sizeof(msg.digest), msg.digest);
+		hmac(key, &msg, sizeof(msg) - sizeof(msg.digest), msg.digest);
+	}
 
 	if (sendto(s, &msg, sizeof(msg), 0, (struct sockaddr *)&dst,
 		    sizeof(dst)) == -1)

@@ -1,6 +1,6 @@
-/* $Id: pftabled.c,v 1.15 2004/09/12 15:53:22 armin Exp $ */
+/* $Id: pftabled.c,v 1.17 2005/01/27 09:29:16 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2003, 2004, 2005 Armin Wolfermann.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,11 +48,10 @@
 #include <unistd.h>
 
 #define PFDEV "/dev/pf"
-static int pfdev = -1;
+int pfdev = -1;
 
-static struct syslog_data sdata = SYSLOG_DATA_INIT;
-
-static int timeout = 0;
+int use_syslog = 0;
+int timeout = 0;
 
 TAILQ_HEAD(pftimeout_head, pftimeout) timeouts;
 struct pftimeout {
@@ -70,8 +69,8 @@ logit(int level, const char *fmt, ...)
 
 	va_start(ap, fmt);
 
-	if (sdata.opened) {
-		vsyslog_r(level, &sdata, fmt, ap);
+	if (use_syslog) {
+		vsyslog(level, fmt, ap);
 	} else {
 		fprintf(stderr, "%s: ", __progname);
 		vfprintf(stderr, fmt, ap);
@@ -197,6 +196,7 @@ main(int argc, char *argv[])
 	int daemonize = 0;
 	char *forced = NULL;
 	char key[SHA1_DIGEST_LENGTH];
+	int use_key = 0;
 	int port = 56789;
 	int verbose = 0;
 
@@ -215,6 +215,7 @@ main(int argc, char *argv[])
 				err(1, "table name too long");
 			break;
 		case 'k':
+			use_key = 1;
 			keyfile = open(optarg, O_RDONLY, 0);
 			if (read(keyfile, key, sizeof(key)) != sizeof(key))
 				err(1, "unable to read authentication key");
@@ -264,7 +265,9 @@ main(int argc, char *argv[])
 	/* Daemonize if requested */
 	if (daemonize) {
 		tzset();
-		openlog_r("pftabled", LOG_PID|LOG_NDELAY, LOG_DAEMON, &sdata);
+
+		openlog("pftabled", LOG_PID|LOG_NDELAY, LOG_DAEMON);
+		use_syslog = 1;
 
 		if (daemon(0, 0) == -1)
 			err(1, "daemon");
@@ -336,8 +339,8 @@ main(int argc, char *argv[])
 		}
 
 		/* Check authentication */
-		if (hmac_verify(key, &msg, sizeof(msg) - sizeof(msg.digest),
-		    msg.digest)) {
+		if (use_key && hmac_verify(key, &msg,
+		    sizeof(msg) - sizeof(msg.digest), msg.digest)) {
 			if (verbose)
 				logit(LOG_ERR, "wrong authentication\n");
 			continue;
@@ -366,7 +369,7 @@ main(int argc, char *argv[])
 				logit(LOG_ERR, "<%s> flush\n", table);
 			break;
 		default:
-			logit(LOG_ERR, "received unkown command\n");
+			logit(LOG_ERR, "received unknown command\n");
 			break;
 		}
 	}

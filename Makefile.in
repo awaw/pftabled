@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.10 2004/09/12 16:40:41 armin Exp $
+# $Id: Makefile.in,v 1.11 2004/09/17 19:58:29 armin Exp $
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -7,7 +7,7 @@ sbindir=@sbindir@
 mandir=@mandir@
 
 CC=@CC@
-CFLAGS=@CFLAGS@ -Wall
+CFLAGS=@CFLAGS@ -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wshadow -Wpointer-arith -Wcast-qual -Wsign-compare
 CPPFLAGS=@CPPFLAGS@
 LDFLAGS=@LDFLAGS@
 INSTALL=@INSTALL@
