@@ -1,4 +1,4 @@
-/* $Id: pftabled.c,v 1.7 2004/04/24 23:12:01 armin Exp $ */
+/* $Id: pftabled.c,v 1.8 2004/05/01 16:24:34 armin Exp $ */
 /*
  * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
  *
@@ -209,6 +209,7 @@ main(int argc, char *argv[])
 			break;
 		case 't':
 			timeout = strtol(optarg, NULL, 10);
+			TAILQ_INIT(&timeouts);
 			break;
 		case 'v':
 			verbose = 1;
