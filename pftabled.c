@@ -1,6 +1,6 @@
-/* $Id: pftabled.c,v 1.5 2003/10/27 22:20:52 armin Exp $ */
+/* $Id: pftabled.c,v 1.7 2004/04/24 23:12:01 armin Exp $ */
 /*
- * Copyright (c) 2003 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,6 +28,7 @@
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/queue.h>
 
 #include <net/if.h>
 #include <net/pfvar.h>
@@ -52,6 +53,15 @@
 static int pfdev = -1;
 
 static struct syslog_data sdata = SYSLOG_DATA_INIT;
+
+static int timeout = 0;
+
+TAILQ_HEAD(pftimeout_head, pftimeout) timeouts;
+struct pftimeout {
+	TAILQ_ENTRY(pftimeout) queue;
+	struct in_addr ip;
+	time_t timeout;
+};
 
 static void
 logit(int level, const char *fmt, ...)
@@ -79,6 +89,7 @@ add(char *tname, struct in_addr *ip)
 	struct pfioc_table io;
 	struct pfr_table table;
 	struct pfr_addr addr;
+	struct pftimeout *t;
 
 	bzero(&io, sizeof io);
 	bzero(&table, sizeof(table));
@@ -97,6 +108,14 @@ add(char *tname, struct in_addr *ip)
 
 	if (ioctl(pfdev, DIOCRADDADDRS, &io))
 		err(1, "ioctl");
+
+	if (timeout) {
+		if ((t = malloc(sizeof(struct pftimeout))) == NULL)
+			err(1, "malloc");
+		t->timeout = time(NULL) + timeout;
+		t->ip = *ip;
+		TAILQ_INSERT_HEAD(&timeouts, t, queue);
+	}
 }
 
 static void
@@ -145,12 +164,14 @@ flush(char *tname)
 static void
 usage(int code)
 {
+	fprintf(stderr, "%d\n", sizeof(struct pftimeout));
 	fprintf(stderr,
-	    "Usage: pftabled [-dv] [-a address] [-p port] table\n"
+	    "Usage: pftabled [-dv] [-a address] [-p port] [-t timeout] table\n"
 	    "-d          Run as daemon in the background\n"
 	    "-v          Log all received packets\n"
 	    "-a address  Bind to this address (default: 0.0.0.0)\n"
-	    "-p port     Bind to this port (default: 56789)\n");
+	    "-p port     Bind to this port (default: 56789)\n"
+	    "-t timeout  Remove IPs from table after timeout seconds\n");
 	if (code)
 		exit(code);
 }
@@ -164,6 +185,8 @@ main(int argc, char *argv[])
 	struct passwd *pw;
 	struct pftabled_msg msg;
 	int ch, n, s;
+	struct timeval tv;
+	struct pftimeout *t;
 
 	/* Options and their defaults */
 	char *address = NULL;
@@ -173,7 +196,7 @@ main(int argc, char *argv[])
 	int verbose = 0;
 
 	/* Process commandline arguments */
-	while ((ch = getopt(argc, argv, "a:dp:vh")) != -1) {
+	while ((ch = getopt(argc, argv, "a:dp:t:vh")) != -1) {
 		switch (ch) {
 		case 'a':
 			address = optarg;
@@ -183,6 +206,9 @@ main(int argc, char *argv[])
 			break;
 		case 'p':
 			port = strtol(optarg, NULL, 10);
+			break;
+		case 't':
+			timeout = strtol(optarg, NULL, 10);
 			break;
 		case 'v':
 			verbose = 1;
@@ -212,21 +238,27 @@ main(int argc, char *argv[])
 	if (bind(s, (struct sockaddr *)&laddr, socklen) == -1)
 		err(1, "bind");
 
-	/* Open PF device */
+	/* Set receive timeout on socket if using timeouts */
+	if (timeout) {
+		tv.tv_sec = 1;
+		tv.tv_usec = 0;
+		if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)))
+			err(1, "setsockopt");
+	}
+
+	/* Open PF device while we are root */
 	pfdev = open(PFDEV, O_RDWR);
 	if (pfdev == -1)
 		err(1, "open " PFDEV);
 
-	/* Use syslog if daemonized */
+	/* Daemonize if requested */
 	if (daemonize) {
 		tzset();
-		openlog_r("pftabled", LOG_PID | LOG_NDELAY, LOG_DAEMON,
-		    &sdata);
-	}
+		openlog_r("pftabled", LOG_PID|LOG_NDELAY, LOG_DAEMON, &sdata);
 
-	/* Daemonize if requested */
-	if (daemonize && (daemon(0, 0) == -1))
-		err(1, "daemon");
+		if (daemon(0, 0) == -1)
+			err(1, "daemon");
+	}
 
 	/* Find less privileged user */
 	pw = getpwnam("pftabled");
@@ -253,8 +285,28 @@ main(int argc, char *argv[])
 
 	/* Main loop: receive packets */
 	for(;;) {
+
 		n = recvfrom(s, &msg, sizeof(msg), 0,
 		    (struct sockaddr *)&raddr, &socklen);
+
+		/* Check for timeouts */
+		if (timeout) {
+			time_t now = time(NULL);
+
+			while (!TAILQ_EMPTY(&timeouts)) {
+				t = TAILQ_LAST(&timeouts, pftimeout_head);
+				if (now < t->timeout)
+					break;
+
+				del(table, &t->ip);
+				if (verbose)
+					logit(LOG_ERR, "<%s> del %s\n", table,
+					    inet_ntoa(t->ip));
+
+				TAILQ_REMOVE(&timeouts, t, queue);
+				free(t);
+			}
+		}
 
 		/* Drop short packets */
 		if (n != sizeof(msg))

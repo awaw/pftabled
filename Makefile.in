@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.2 2003/10/26 23:52:49 armin Exp $
+# $Id: Makefile.in,v 1.5 2004/04/24 23:20:55 armin Exp $
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -43,16 +43,11 @@ clean:
 distclean: clean
 	rm -f config.log config.status config.cache Makefile
 
-VERSION="pftabled @VERSION@ (`date +%Y-%b-%d`)"
+VERSION="pftabled @VERSION@ (`date +%Y-%m-%d`)"
 DISTDIR=pftabled-@VERSION@
-dist: server client clean
-	rm -rf $(DISTDIR)
-	mkdir $(DISTDIR)
-	-cp * $(DISTDIR)
-	cd $(DISTDIR) && make distclean
-	cd $(DISTDIR) && rm -f prepare configure.in
-	(echo $(VERSION); cat README) >$(DISTDIR)/README
-	tar cf pftabled-@VERSION@.tar ./pftabled-@VERSION@/
-	gzip -f9 pftabled-@VERSION@.tar
-	rm -rf $(DISTDIR)
+dist:
+	-(echo 1c; echo $(VERSION); echo .; echo wq) | ed README
+	-rm -f $(DISTDIR).tar $(DISTDIR).tar.gz
+	-tar -I MANIFEST -s '/^/$(DISTDIR)\//' -cvf $(DISTDIR).tar
+	-gzip -9 $(DISTDIR).tar
 

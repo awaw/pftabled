@@ -1,5 +1,5 @@
-pftabled 1.01 (2003-Oct-29)
-===========================
+pftabled 1.02 (2004-04-25)
+==========================
 
 The pftabled daemon is a small helper to make your pf tables reachable
 from other hosts. You can add/delete/flush IP addresses to/from a fixed
@@ -10,8 +10,8 @@ SECURITY: The daemon runs chrooted and drops privileges to a user named
 pftabled (or nobody if it doesn't exist). But remember to secure your
 receiving port by adequate pf rules, e.g.
 
-  block in proto udp from any to any port 1234
-  pass in on $if_int proto udp from $internal to any port 1234
+  block in proto udp from any to ($if_int) port 1234
+  pass in on $if_int proto udp from $authorized to ($if_int) port 1234
 
 
 Usage examples
@@ -44,21 +44,15 @@ to add attackers to a blocklist on your firewall
   block in on fxp0 from <block> to any
 
 
-3. Load balancer
+History
+=======
 
-You have a PF load balancer in front of your web server farm:
+2004-04-24 Version 1.02.
+           New timeout option to remove table entries after a fixed time.
+           Idea from Samuel Ljungkvist <salj@triplefusion.net>, code by me.
 
-  table <farm> persist
-  rdr on fxp0 proto tcp from any to any port 80 -> <farm> round-robin
-
-On every webserver 10.1.1.x you assure it will be listed in table <farm>
-as long as the machine is running:
-
-  while true; do pftabled-client 10.1.1.1 1234 add 10.1.1.x; sleep 1; done
-
-Periodically cleaning entries from <farm> on the load balancer:
-
-  for x in 2 3 4; do pfctl -t farm -T del 10.1.1.$x; sleep 10; done
+2003-10-29 Version 1.01.
+           Initial release.
 
 
 Homepage
@@ -69,4 +63,4 @@ You can always find the latest version of pftabled at:
   http://www.wolfermann.org/pftabled.html
 
 
-$Id: README,v 1.6 2003/10/26 23:27:24 armin Exp $
+$Id: README,v 1.11 2004/04/24 23:20:55 armin Exp $
