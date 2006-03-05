@@ -1,4 +1,4 @@
-.\" $Id: pftabled.1,v 1.8 2005/01/27 09:29:38 armin Exp $
+.\" $Id: pftabled.1,v 1.9 2006/03/05 23:13:28 armin Exp $
 .\"
 .\" Manpage written by Armin Wolfermann. Public Domain.
 .\"
@@ -70,7 +70,7 @@ The
 daemon accepts UDP datagrams of the following format:
 .Bd -literal -offset indent
 +---------+---------+---------+---------+
-| Version | Command |      Reserved     |
+| Version | Command | Reserved| Netmask |
 +---------+---------+---------+---------+
 |              IPv4 address             |
 +---------+---------+---------+---------+
@@ -101,6 +101,6 @@ Flush table.
 .Sh VERSION
 This manual page describes
 .Nm
-version 1.05.
+version 1.06.
 .Sh AUTHORS
 Armin Wolfermann <armin@wolfermann.org>

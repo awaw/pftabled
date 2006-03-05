@@ -1,6 +1,6 @@
-/* $Id: pftabled-client.c,v 1.13 2005/01/27 09:29:16 armin Exp $ */
+/* $Id: pftabled-client.c,v 1.14 2006/03/05 23:13:28 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004, 2005 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2003, 2004, 2005, 2006 Armin Wolfermann. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,6 +48,22 @@ fatal(char *text, char *arg)
 	exit(1);
 }
 
+static void
+usage(int code)
+{
+	fprintf(stderr, "\nUsage: "
+	    "pftabled-client [-k keyfile] host port table cmd [ip[/mask]]\n"
+	    "\n"
+	    "host      Host where pftabled is running\n"
+	    "port      Port number at host\n"
+	    "table     Name of table\n"
+	    "cmd       One of: add, del or flush.\n"
+	    "ip[/mask] IP or network to add or delete from table\n"
+	    "keyfile   Name of file to read key from\n\n");
+	if (code)
+		exit(code);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -56,21 +72,30 @@ main(int argc, char *argv[])
 	struct hostent *host;
 	struct pftabled_msg msg;
 	char key[SHA1_DIGEST_LENGTH];
+	char *slash;
 	int keyfile;
-	int s;
+	int use_key = 0;
+	int s, ch;
 
-	if (argc < 6) {
-		fprintf(stderr,
-		    "Usage: pftabled-client host port cmd ip table [keyfile]\n"
-		    "\n"
-		    "host    Host where pftabled is running\n"
-		    "port    Port number at host\n"
-		    "cmd     One of: add, del or flush.\n"
-		    "ip      IP to add or delete from table\n"
-		    "table   Name of table\n"
-		    "keyfile Name of file to read key from\n\n");
-		exit(1);
+	while ((ch = getopt(argc, argv, "k:h")) != -1) {
+		switch (ch) {
+		case 'k':
+			use_key = 1;
+			keyfile = open(optarg, O_RDONLY, 0);
+			if (read(keyfile, key, sizeof(key)) != sizeof(key))
+				fatal("unable to read key file\n", NULL);
+			close(keyfile);
+			break;
+		case 'h':
+		default:
+			usage(1);
+		}
 	}
+	argc -= optind;
+	argv += optind;
+
+	if (argc < 4)
+		usage(1);
 
 	if ((s = socket(AF_INET, SOCK_DGRAM, 0)) == -1)
 		fatal("Error creating socket\n", NULL);
@@ -84,42 +109,53 @@ main(int argc, char *argv[])
 	memset(&dst, 0, sizeof(dst));
 	dst.sin_family = AF_INET;
 
-	if ((host = gethostbyname(argv[1])) == NULL)
-		fatal("Unable to resolve '%s'\n", argv[1]);
+	if ((host = gethostbyname(*argv)) == NULL)
+		fatal("Unable to resolve '%s'\n", *argv);
 
 	memcpy(&dst.sin_addr, host->h_addr, host->h_length);
+	--argc, ++argv;
 
-	dst.sin_port = htons(atoi(argv[2]));
+	dst.sin_port = htons(atoi(*argv));
+	--argc, ++argv;
 
 	memset(&msg, 0, sizeof(msg));
 	msg.version = PFTABLED_MSG_VERSION;
 	msg.timestamp = htonl(time(NULL));
 
-	if (!strcmp(argv[3], "add"))
+	if (strlen(*argv) > sizeof(msg.table))
+		fatal("Table name '%s' too long\n", *argv);
+
+	strncpy(msg.table, *argv, strlen(*argv));
+	--argc, ++argv;
+
+	if (!strcmp(*argv, "add"))
 		msg.cmd = PFTABLED_CMD_ADD;
-	else if (!strcmp(argv[3], "del"))
+	else if (!strcmp(*argv, "del"))
 		msg.cmd = PFTABLED_CMD_DEL;
-	else if (!strcmp(argv[3], "flush"))
+	else if (!strcmp(*argv, "flush"))
 		msg.cmd = PFTABLED_CMD_FLUSH;
 	else
-		fatal("Unknown command '%s'\n", argv[3]);
+		fatal("Unknown command '%s'\n", *argv);
+	--argc, ++argv;
 
-	if (inet_pton(AF_INET, argv[4], &msg.addr) != 1)
-		fatal("Unable to parse '%s'\n", argv[4]);
+	if (msg.cmd != PFTABLED_CMD_FLUSH) {
+		if (!argc)
+			usage(1);
 
-	if (strlen(argv[5]) > sizeof(msg.table))
-		fatal("Table name '%s' too long\n", argv[5]);
+		if ((slash = strchr(*argv, '/')) != NULL) {
+			msg.mask = (uint8_t)atoi(slash+1);
+			if (msg.mask < 1 || msg.mask > 32)
+				fatal("Invalid network mask '%s'\n", slash);
+			*slash = '\0';
+		} else
+			msg.mask = 32;
 
-	strncpy(msg.table, argv[5], strlen(argv[5]));
-
-	if (argc == 7) {
-		keyfile = open(argv[6], O_RDONLY, 0);
-		if (read(keyfile, key, sizeof(key)) != sizeof(key))
-			fatal("Unable to read key from file '%s'\n", argv[6]);
-		close(keyfile);
-
-		hmac(key, &msg, sizeof(msg) - sizeof(msg.digest), msg.digest);
+		if (inet_pton(AF_INET, *argv, &msg.addr) != 1)
+			fatal("Unable to parse '%s'\n", *argv);
 	}
+
+	if (use_key)
+		hmac(key, &msg, sizeof(msg) - sizeof(msg.digest), msg.digest);
 
 	if (sendto(s, &msg, sizeof(msg), 0, (struct sockaddr *)&dst,
 		    sizeof(dst)) == -1)

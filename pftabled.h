@@ -1,6 +1,6 @@
-/* $Id: pftabled.h,v 1.10 2004/09/12 15:53:22 armin Exp $ */
+/* $Id: pftabled.h,v 1.11 2006/03/05 23:13:28 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2003, 2004, 2005, 2006 Armin Wolfermann. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,6 +47,14 @@
 #define DPRINTF(x)
 #endif
 
+#define cleanmask(ip, mask) { \
+	uint8_t *b = (uint8_t *)ip; \
+	if (mask < 32) b[3] &= (0xFF << (32 - mask)); \
+	if (mask < 24) b[2] &= (0xFF << (24 - mask)); \
+	if (mask < 16) b[1] &= (0xFF << (16 - mask)); \
+	if (mask <  8) b[0] &= (0xFF << ( 8 - mask)); \
+}
+
 #ifndef PF_TABLE_NAME_SIZE
 #define PF_TABLE_NAME_SIZE 32	/* Needs to be defined for non-OpenBSD */
 #endif
@@ -55,7 +63,7 @@
 			   seconds between server and client. Server drops
 			   packet if exceeded. */
 
-#define PFTABLED_MSG_VERSION 0x01
+#define PFTABLED_MSG_VERSION 0x02
 
 #define PFTABLED_CMD_ADD   0x01
 #define PFTABLED_CMD_DEL   0x02
@@ -64,7 +72,8 @@
 struct pftabled_msg {
 	uint8_t		version;
 	uint8_t		cmd;
-	uint8_t		reserved[2];
+	uint8_t		reserved;
+	uint8_t		mask;
 	struct in_addr	addr;
 	char		table[PF_TABLE_NAME_SIZE];
 	uint32_t	timestamp;

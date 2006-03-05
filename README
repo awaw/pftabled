@@ -1,5 +1,5 @@
 -----------------------------------------------------------------------------
-pftabled 1.05
+pftabled 1.06
 -----------------------------------------------------------------------------
 
 The pftabled daemon is a small helper to make your pf tables reachable
@@ -14,9 +14,16 @@ I still recommend to secure the receiving port by adequate pf rules, e.g.
   block in proto udp from any to ($if_int) port 56789
   pass in on $if_int proto udp from $authorized to ($if_int) port 56789
 
-UPGRADING: If you're upgrading from a version older than 1.04 you have to
-upgrade client and server. I changed the message format to support the new
-features and to make future upgrades easier.
+-----------------------------------------------------------------------------
+Upgrading
+-----------------------------------------------------------------------------
+
+If you're upgrading from version 1.05 you only need to upgrade the server,
+it accepts old format messages also. The option format of the included
+pftabled-client has changed (see pftabled-client -h).
+
+If you're upgrading from a version older than 1.04 you have to upgrade
+client and server.
 
 -----------------------------------------------------------------------------
 Installation
@@ -59,7 +66,7 @@ On your firewall you are redirecting certain IPs to spamd:
 Now you're able to fill this table from your mailservers, e.g. with qmail
 
   $ cat .qmail-spamtrap
-  |pftabled-client 10.1.1.1 1234 add $TCPREMOTEIP spammer /etc/pftabled.key
+  |pftabled-client 10.1.1.1 1234 add spammer $TCPREMOTEIP /etc/pftabled.key
 
 
 2. Portsentry response
@@ -68,7 +75,7 @@ You're running portsentry (or some other honeypot tool) on your hosts.
 Add these lines to your portsentry.conf
 
   KILL_RUN_CMD_FIRST = "0"
-  KILL_RUN_CMD="pftabled-client 10.1.1.1 1234 add $TARGET$ blocked /etc/key"
+  KILL_RUN_CMD="pftabled-client 10.1.1.1 1234 add blocked $TARGET$ /etc/key"
 
 to add attackers to a blocklist on your firewall
 
@@ -82,7 +89,7 @@ Internals
 Datagram format (64 bytes):
 
 	+---------+---------+---------+---------+
-	| Version | Command |      Reserved     |
+	| Version | Command | Reserved| Netmask |
 	+---------+---------+---------+---------+
 	|              IPv4 address             |
 	+---------+---------+---------+---------+
@@ -98,7 +105,8 @@ Datagram format (64 bytes):
 	+---------+---------+---------+---------+
 
 Version:
-	0x01	pftabled 1.04 or newer
+	0x01	pftabled 1.04 and 1.05
+	0x02	pftabled 1.06
 
 Command:
 	0x01	Add address to table.
@@ -115,20 +123,25 @@ Timestamp:
 History
 -----------------------------------------------------------------------------
 
+2006-03-06 Version 1.06
+           Add mask field to enable addition/deletion of whole networks (idea
+           and initial patch from Niki Denev). Changed pftabled-client option
+           parsing.
+
 2005-01-27 Version 1.05
-	   Make authentication completely optional. Portability fixes for
-	   servers running on FreeBSD (prompted by Nick Buraglio).
+           Make authentication completely optional. Portability fixes for
+           servers running on FreeBSD (prompted by Nick Buraglio).
 
 2004-09-12 Version 1.04
            SHA1 authentication and client selectable tables (idea from
-	   Russell Fulton) which necessitates a new wire format.
+           Russell Fulton) which necessitates a new wire format.
 
 2004-05-01 Version 1.03
            Bugfix: Missing initializer for timeout queue.
 
 2004-04-24 Version 1.02
-	   New timeout option to automatically remove table entries after a
-	   fixed time (idea from Samuel Ljungkvist).
+           New timeout option to automatically remove table entries after a
+           fixed time (idea from Samuel Ljungkvist).
 
 2003-10-29 Version 1.01
            Initial release.
@@ -142,4 +155,4 @@ You can always find the latest version of pftabled at:
   http://www.wolfermann.org/pftabled.html
 
 -----------------------------------------------------------------------------
-$Id: README.in,v 1.7 2005/01/27 09:27:27 armin Exp $
+$Id: README.in,v 1.9 2006/03/05 23:13:28 armin Exp $

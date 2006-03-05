@@ -1,6 +1,6 @@
-/* $Id: pftabled.c,v 1.17 2005/01/27 09:29:16 armin Exp $ */
+/* $Id: pftabled.c,v 1.19 2006/03/06 09:12:53 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004, 2005 Armin Wolfermann.  All rights reserved.
+ * Copyright (c) 2003, 2004, 2005, 2006 Armin Wolfermann. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -55,10 +55,11 @@ int timeout = 0;
 
 TAILQ_HEAD(pftimeout_head, pftimeout) timeouts;
 struct pftimeout {
-	TAILQ_ENTRY(pftimeout) queue;
-	struct in_addr ip;
-	time_t timeout;
-	char   table[PF_TABLE_NAME_SIZE];
+	TAILQ_ENTRY(pftimeout)	queue;
+	struct in_addr		ip;
+	uint8_t			mask;
+	time_t			timeout;
+	char			table[PF_TABLE_NAME_SIZE];
 };
 
 static void
@@ -82,7 +83,7 @@ logit(int level, const char *fmt, ...)
 }
 
 static void
-add(char *tname, struct in_addr *ip)
+add(char *tname, struct in_addr *ip, uint8_t mask)
 {
 	struct pfioc_table io;
 	struct pfr_table table;
@@ -97,7 +98,7 @@ add(char *tname, struct in_addr *ip)
 
 	bcopy(ip, &addr.pfra_ip4addr, 4);
 	addr.pfra_af = AF_INET;
-	addr.pfra_net = 32;
+	addr.pfra_net = mask;
 
 	io.pfrio_table = table;
 	io.pfrio_buffer = &addr;
@@ -111,6 +112,7 @@ add(char *tname, struct in_addr *ip)
 		if ((t = malloc(sizeof(struct pftimeout))) == NULL)
 			err(1, "malloc");
 		t->ip = *ip;
+		t->mask = mask;
 		t->timeout = time(NULL) + timeout;
 		strncpy(t->table, tname, sizeof(t->table));
 		TAILQ_INSERT_HEAD(&timeouts, t, queue);
@@ -118,7 +120,7 @@ add(char *tname, struct in_addr *ip)
 }
 
 static void
-del(char *tname, struct in_addr *ip)
+del(char *tname, struct in_addr *ip, uint8_t mask)
 {
 	struct pfioc_table io;
 	struct pfr_table table;
@@ -132,7 +134,7 @@ del(char *tname, struct in_addr *ip)
 
 	bcopy(ip, &addr.pfra_ip4addr, 4);
 	addr.pfra_af = AF_INET;
-	addr.pfra_net = 32;
+	addr.pfra_net = mask;
 
 	io.pfrio_table = table;
 	io.pfrio_buffer = &addr;
@@ -163,7 +165,6 @@ flush(char *tname)
 static void
 usage(int code)
 {
-	fprintf(stderr, "%d\n", sizeof(struct pftimeout));
 	fprintf(stderr,
 	    "Usage: pftabled [options...]\n"
 	    "-d          Run as daemon in the background\n"
@@ -310,10 +311,11 @@ main(int argc, char *argv[])
 				if (now < t->timeout)
 					break;
 
-				del(t->table, &t->ip);
+				del(t->table, &t->ip, t->mask);
 				if (verbose)
-					logit(LOG_ERR, "<%s> del %s\n",
-					    t->table, inet_ntoa(t->ip));
+					logit(LOG_INFO, "<%s> timeout %s/%d\n",
+					    t->table, inet_ntoa(t->ip),
+					    t->mask);
 
 				TAILQ_REMOVE(&timeouts, t, queue);
 				free(t);
@@ -325,11 +327,15 @@ main(int argc, char *argv[])
 			continue;
 
 		/* Check packet version */
-		if (msg.version != PFTABLED_MSG_VERSION) {
+		if (msg.version > PFTABLED_MSG_VERSION) {
 			if (verbose)
 				logit(LOG_ERR, "wrong protocol version\n");
 			continue;
 		}
+
+		/* Transform packets from previous versions */
+		if (msg.version == 0x01)
+			msg.mask = 32;
 
 		/* Check timestamp */
 		if ((uint32_t)time(NULL) - ntohl(msg.timestamp) > CLOCKDIFF) {
@@ -352,21 +358,23 @@ main(int argc, char *argv[])
 		/* Dispatch commands */
 		switch (msg.cmd) {
 		case PFTABLED_CMD_ADD:
-			add(table, &msg.addr);
+			cleanmask(&msg.addr, msg.mask);
+			add(table, &msg.addr, msg.mask);
 			if (verbose)
-				logit(LOG_ERR, "<%s> add %s\n", table,
-				    inet_ntoa(msg.addr));
+				logit(LOG_INFO, "<%s> add %s/%d\n", table,
+				    inet_ntoa(msg.addr), msg.mask);
 			break;
 		case PFTABLED_CMD_DEL:
-			del(table, &msg.addr);
+			cleanmask(&msg.addr, msg.mask);
+			del(table, &msg.addr, msg.mask);
 			if (verbose)
-				logit(LOG_ERR, "<%s> del %s\n", table,
-				    inet_ntoa(msg.addr));
+				logit(LOG_INFO, "<%s> del %s/%d\n", table,
+				    inet_ntoa(msg.addr), msg.mask);
 			break;
 		case PFTABLED_CMD_FLUSH:
 			flush(table);
 			if (verbose)
-				logit(LOG_ERR, "<%s> flush\n", table);
+				logit(LOG_INFO, "<%s> flush\n", table);
 			break;
 		default:
 			logit(LOG_ERR, "received unknown command\n");
