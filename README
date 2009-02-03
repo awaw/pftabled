@@ -1,11 +1,11 @@
 -----------------------------------------------------------------------------
-pftabled 1.06
+pftabled 1.07
 -----------------------------------------------------------------------------
 
 The pftabled daemon is a small helper to make your pf tables reachable
 from other hosts. You can add/delete/flush IP addresses to/from a remote
-table with a single UDP datagram. A simple client program is included to
-do this on the command line.
+table with a single UDP datagram. Sample client programs in C and Perl are
+included.
 
 SECURITY: The daemon runs chrooted and drops privileges to a user named
 pftabled (or nobody if it doesn't exist). Even with SHA1 authentication
@@ -20,7 +20,7 @@ Upgrading
 
 If you're upgrading from version 1.05 you only need to upgrade the server,
 it accepts old format messages also. The option format of the included
-pftabled-client has changed (see pftabled-client -h).
+C client has changed (see pftabled-client -h).
 
 If you're upgrading from a version older than 1.04 you have to upgrade
 client and server.
@@ -105,8 +105,8 @@ Datagram format (64 bytes):
 	+---------+---------+---------+---------+
 
 Version:
-	0x01	pftabled 1.04 and 1.05
-	0x02	pftabled 1.06
+	0x01	pftabled 1.05 and earlier
+	0x02	pftabled 1.06 and later
 
 Command:
 	0x01	Add address to table.
@@ -122,6 +122,9 @@ Timestamp:
 -----------------------------------------------------------------------------
 History
 -----------------------------------------------------------------------------
+
+2009-02-04 Version 1.07
+           Add sample Perl client.
 
 2006-03-06 Version 1.06
            Add mask field to enable addition/deletion of whole networks (idea
@@ -155,4 +158,4 @@ You can always find the latest version of pftabled at:
   http://www.wolfermann.org/pftabled.html
 
 -----------------------------------------------------------------------------
-$Id: README.in,v 1.9 2006/03/05 23:13:28 armin Exp $
+$Id: README.in,v 1.12 2009/02/04 12:39:22 armin Exp $

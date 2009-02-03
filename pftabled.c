@@ -1,6 +1,7 @@
-/* $Id: pftabled.c,v 1.19 2006/03/06 09:12:53 armin Exp $ */
+/* $Id: pftabled.c,v 1.20 2009/02/04 12:05:10 armin Exp $ */
 /*
- * Copyright (c) 2003, 2004, 2005, 2006 Armin Wolfermann. All rights reserved.
+ * Copyright (c) 2003, 2004, 2005, 2006, 2009 Armin Wolfermann. All rights
+ * reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
