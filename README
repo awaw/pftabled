@@ -1,5 +1,5 @@
 -----------------------------------------------------------------------------
-pftabled 1.07
+pftabled 1.08
 -----------------------------------------------------------------------------
 
 The pftabled daemon is a small helper to make your pf tables reachable
@@ -61,7 +61,8 @@ Usage examples
 On your firewall you are redirecting certain IPs to spamd:
 
   table <spammer> persist
-  rdr on $ext proto tcp from <spammer> to any port 25 -> 127.0.0.1 port 8025
+  pass in on egress proto tcp from <spammer> to any port 25 \
+      rdr-to 127.0.0.1 port spamd
 
 Now you're able to fill this table from your mailservers, e.g. with qmail
 
@@ -123,8 +124,12 @@ Timestamp:
 History
 -----------------------------------------------------------------------------
 
+2010-04-20 Version 1.08
+           Add sample python client. Check not only for replay attacks but
+	   for clock deviations to both sides (patch by Melissa Jenkins).
+
 2009-02-04 Version 1.07
-           Add sample Perl client.
+           Add sample perl client.
 
 2006-03-06 Version 1.06
            Add mask field to enable addition/deletion of whole networks (idea
@@ -158,4 +163,4 @@ You can always find the latest version of pftabled at:
   http://www.wolfermann.org/pftabled.html
 
 -----------------------------------------------------------------------------
-$Id: README.in,v 1.12 2009/02/04 12:39:22 armin Exp $
+$Id: README.in,v 1.13 2010/04/20 15:19:47 armin Exp $

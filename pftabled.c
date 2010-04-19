@@ -1,4 +1,4 @@
-/* $Id: pftabled.c,v 1.20 2009/02/04 12:05:10 armin Exp $ */
+/* $Id: pftabled.c,v 1.21 2010/04/20 15:19:47 armin Exp $ */
 /*
  * Copyright (c) 2003, 2004, 2005, 2006, 2009 Armin Wolfermann. All rights
  * reserved.
@@ -339,9 +339,10 @@ main(int argc, char *argv[])
 			msg.mask = 32;
 
 		/* Check timestamp */
-		if ((uint32_t)time(NULL) - ntohl(msg.timestamp) > CLOCKDIFF) {
+		if (abs(time(NULL) - ntohl(msg.timestamp)) > CLOCKDIFF) {
 			if (verbose)
-				logit(LOG_ERR, "timestamp too old\n");
+				logit(LOG_ERR, "wrong timestamp from %s\n",
+				    inet_ntoa(raddr.sin_addr));
 			continue;
 		}
 
