@@ -1,11 +1,11 @@
 -----------------------------------------------------------------------------
-pftabled 1.08
+pftabled 1.09
 -----------------------------------------------------------------------------
 
 The pftabled daemon is a small helper to make your pf tables reachable
 from other hosts. You can add/delete/flush IP addresses to/from a remote
-table with a single UDP datagram. Sample client programs in C and Perl are
-included.
+table with a single UDP datagram. Sample client programs in C, Perl, PHP
+and Python are included.
 
 SECURITY: The daemon runs chrooted and drops privileges to a user named
 pftabled (or nobody if it doesn't exist). Even with SHA1 authentication
@@ -124,9 +124,12 @@ Timestamp:
 History
 -----------------------------------------------------------------------------
 
+2010-11-12 Version 1.09
+           Add sample PHP client. Use mandoc manual formatter if available.
+
 2010-04-20 Version 1.08
            Add sample python client. Check not only for replay attacks but
-	   for clock deviations to both sides (patch by Melissa Jenkins).
+           for clock deviations to both sides (patch by Melissa Jenkins).
 
 2009-02-04 Version 1.07
            Add sample perl client.
@@ -163,4 +166,4 @@ You can always find the latest version of pftabled at:
   http://www.wolfermann.org/pftabled.html
 
 -----------------------------------------------------------------------------
-$Id: README.in,v 1.13 2010/04/20 15:19:47 armin Exp $
+$Id: README.in,v 1.14 2010/11/12 09:42:55 armin Exp $

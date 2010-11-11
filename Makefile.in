@@ -1,4 +1,4 @@
-# $Id: Makefile.in,v 1.12 2009/02/04 11:09:33 armin Exp $
+# $Id: Makefile.in,v 1.13 2010/11/12 09:42:55 armin Exp $
 
 prefix=@prefix@
 exec_prefix=@exec_prefix@
@@ -13,6 +13,7 @@ CPPFLAGS=@CPPFLAGS@
 LDFLAGS=@LDFLAGS@
 INSTALL=@INSTALL@
 LIBS=@LIBS@
+NROFF=@NROFF@
 
 SERVEROBJS=pftabled.o hmac.o sha1.o
 CLIENTOBJS=pftabled-client.o hmac.o sha1.o
@@ -27,7 +28,7 @@ pftabled: ${SERVEROBJS}
 	${CC} ${LDFLAGS} -o $@ ${SERVEROBJS} ${LIBS}
 
 pftabled.cat1: pftabled.1
-	nroff -Tascii -man pftabled.1 > pftabled.cat1
+	${NROFF} pftabled.1 > pftabled.cat1
 
 pftabled-client: ${CLIENTOBJS}
 	${CC} ${LDFLAGS} -o $@ ${CLIENTOBJS} ${LIBS}
