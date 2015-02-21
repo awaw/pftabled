@@ -1,0 +1,4 @@
+#!/bin/sh
+export AUTOCONF_VERSION=2.62
+autoheader
+autoconf
