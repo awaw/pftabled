@@ -1,4 +1,3 @@
-/* $Id: pftabled-client.c,v 1.16 2010/04/20 15:19:47 armin Exp $ */
 /*
  * Copyright (c) 2003, 2004, 2005, 2006, 2009, 2010 Armin Wolfermann.
  * 

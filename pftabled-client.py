@@ -1,5 +1,4 @@
 #!/usr/local/bin/python
-# $Id: pftabled-client.py,v 1.1 2010/04/20 15:19:47 armin Exp $
 #
 # Copyright (c) 2010 Armin Wolfermann <armin@wolfermann.org>
 #

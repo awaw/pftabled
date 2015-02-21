@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-# $Id: pftabled-client.pl,v 1.2 2009/02/04 12:01:42 armin Exp $
 #
 # Copyright (c) 2009 Armin Wolfermann <armin@wolfermann.org>
 #
