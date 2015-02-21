@@ -1,0 +1,15 @@
+Makefile.in
+README
+config.h.in
+configure
+hmac.c
+install-sh
+pftabled-client.c
+pftabled-client.pl
+pftabled-client.py
+pftabled-client.php
+pftabled.1
+pftabled.c
+pftabled.h
+sha1.c
+sha1.h
